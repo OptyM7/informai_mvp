@@ -5,6 +5,7 @@ import torch.nn as nn
 from torch.nn import functional as F
 from PIL import Image
 import requests
+import tiktoken
 
 class CausalSelfAttention(nn.Module):
     def __init__(self, config):
@@ -95,7 +96,7 @@ class GPT(nn.Module):
         )) 
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias = False)
 
-    def forward(self, idx):
+    def forward(self, idx, target = None):
         B,T = idx.size()
         assert T <= self.config.block_size, f"Cannot forward sequence of length {T}. block size is."
         # forward the token and position embeddings
@@ -109,46 +110,67 @@ class GPT(nn.Module):
         # forward the final layernorm and the classifier
         x = self.transformer.ln_f(x)
         logits = self.lm_head(x) # (B, T, vocab_size)
-        return logits
+        loss = None
+        if target != None:
+            loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1)) # flatten out the tensors to be 32 by 50257 and 31 by 1 respectively
+            #cross entropy  -logn(probability)
+        return logits, loss
 
-num_return_sequences = 5
-max_length = 30
+#-------------------------------------------------------------------------------------------------
+# select device
+device = "cpu"
+if torch.cuda.is_available():
+    device = "cuda"
+elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+    device = "mps"
+print(f"~device used:{device}")
 
-hi = GPTConfig()
-model = GPT(hi)
+
+# randomly initialise model
+model = GPT(GPTConfig())
 model.eval()
-#model.to
 
-# prefix tokens, convert strings to token sequence
-import tiktoken 
-enc = tiktoken. get_encoding ("gpt2")
-tokens = enc.encode("Hello, I'm a language model,")
-tokens = torch.tensor(tokens, dtype=torch.long) # (0,)
-tokens = tokens.unsqueeze(0).repeat(num_return_sequences, 1) # (5, 8)
-x = tokens.to("cpu")
+# import dataset
+with open("tinyshakespeare.txt", "r") as file: # the with statement is a keyword which is used to call 
+    # __enter__ and __exit__  special methods in the class. These methods basically configure the environment of the class
+    # the special environment is only available within the with block, exiting the with block the __exit__ method is called
+    # and the environment is set back to default.
+    data = file.read()[:1000]
+enc = tiktoken.get_encoding('gpt2')
+b, t = 4, 32  # batch and tokens
+tokens = enc.encode(data)
+tokens = tokens[:b*t+1]
+x = torch.tensor(tokens[:-1]).view(b,t) # test data
+y = torch.tensor(tokens[1:]).view(b,t)  # label data
 
 
-# generate! right now x is (B, T) where B = 5, T = 8
-# set the seed to (42)
-while x.size(1) < max_length:
-    with torch.no_grad():
-        logits = model(x) # (B, T, vocab_size)
-        # take the logits at the last position
-        logits = logits[:, -1, :] # (B, vocab_size)
-        # get the probabilities
-        probs = F.softmax(logits, dim=-1)
-        # do top-k sampling of 50 (huggingface pipeline default)
-        # topk_probs here becomes (5, 50), topk_indices is (5, 50)
-        topk_probs, topk_indices = torch.topk(probs, 50, dim=-1)
-        # select a token from the top-k probabilities
-        ix = torch.multinomial(topk_probs, 1) # (B, 1)
-        # gather the corresponding indices
-        xcol = torch.gather(topk_indices, -1, ix) # (B, 1)
-        # append to the sequence
-        x = torch.cat((x,xcol), dim=1)
+logits, loss = model(x,y) # Strange that I'm directly calling class object of GPT with no method (e.g. model.method(x,y)
+# This is because the superclass of model contains a special method __call__ which is called whenever you
+#directly call a class object (its like init but for already existing class objects). 
+# the __call__ method for nn.Module does a number of things, and one of them is to call the child classes
+# forward() implementation, which it does in this case. 
+# logits is a tensor of shape (B, T, vocab_size), and contains basically a score for every possible token in the token set
+# for each token in x (a score predicting what out of the token should be next based on x's current token)
+# if you call this in the no_grad with block it won't use gradient descent to develop the score.
+# which basically removes some of the smartness of the LLM (doesn't use context)
 
-# print the generated text
-for i in range (num_return_sequences):
-    tokens = x[i, :max_length].tolist()
-    decoded = enc.decode(tokens)
-    print(">", decoded)
+print(loss) # should be around 1/50257 if the model was initialised properly
+# # take the logits at the last position
+# logits = logits[:, -1, :] # (B, vocab_size)
+# # get the probabilities
+# probs = F.softmax(logits, dim=-1) # make the logits into probabilities that add up to 1 sum is |1|1|... up to 32
+# # do top-k sampling of 50 (huggingface pipeline default)
+# # topk_probs here becomes (5, 50), topk_indices is (5, 50)
+# topk_probs, topk_indices = torch.topk(probs, 50, dim=-1)
+# # select a token from the top-k probabilities
+# ix = torch.multinomial(topk_probs, 1) # (B, 1)
+# # gather the corresponding indices
+# xcol = torch.gather(topk_indices, -1, ix) # (B, 1)
+# # append to the sequence
+# x = torch.cat((x,xcol), dim=1)
+
+# # print the generated text
+# for i in range (num_return_sequences):
+#     tokens = x[i, :max_length].tolist()
+#     decoded = enc.decode(tokens)
+#     print(">", decoded)
