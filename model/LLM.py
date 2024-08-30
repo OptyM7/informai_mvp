@@ -96,7 +96,11 @@ class GPT(nn.Module):
         )) 
         self.lm_head = nn.Linear(config.n_embd, config.vocab_size, bias = False)
 
-    def forward(self, idx, target = None):
+        # weight sharing scheme
+        #self.transformer.wte.weight = self.lm_head.weight
+
+    
+    def forward(self, idx, targets = None):
         B,T = idx.size()
         assert T <= self.config.block_size, f"Cannot forward sequence of length {T}. block size is."
         # forward the token and position embeddings
@@ -111,10 +115,50 @@ class GPT(nn.Module):
         x = self.transformer.ln_f(x)
         logits = self.lm_head(x) # (B, T, vocab_size)
         loss = None
-        if target != None:
+        if targets != None:
             loss = F.cross_entropy(logits.view(-1, logits.size(-1)), targets.view(-1)) # flatten out the tensors to be 32 by 50257 and 31 by 1 respectively
             #cross entropy  -logn(probability)
         return logits, loss
+
+
+
+class DataLoaderLite:
+    def __init__(self, B, T):
+        self.B = B
+        self.T = T
+
+    
+        # at init load tokens from disk and store them in memory
+        with open("tinyshakespeare.txt", "r") as file: # the with statement is a keyword which is used to call 
+            # __enter__ and __exit__  special methods in the class. These methods basically configure the environment of the class
+            # the special environment is only available within the with block, exiting the with block the __exit__ method is called
+            # and the environment is set back to default.
+            data = file.read()[:10000]
+        enc = tiktoken.get_encoding('gpt2')
+        b, t = 4, 32  # batch and tokens
+        self.tokens = enc.encode(data)
+        self.tokens = torch.tensor(self.tokens)
+        print(f"loaded {len(self.tokens)} tokens")
+        print(f"{len(self.tokens)// (B*T)} batches")
+    
+        #state
+        self.current_position = 0
+
+    def next_batch(self):
+        B,T = self.B, self.T
+        buf = self.tokens[self.current_position : self.current_position + B*T+1]
+        x = buf[:-1].view(B,T)
+        y = buf[1:].view(B, T)
+        # advance the position in the tensor
+        self.current_position = B*T
+        #if loading the next branch would be out of bounds, reset
+        if self.current_position + (B*T + 1) > len(self.tokens):
+            self.current_position = 0
+        return x, y  
+
+
+
+
 
 #-------------------------------------------------------------------------------------------------
 # select device
@@ -126,25 +170,16 @@ elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
 print(f"~device used:{device}")
 
 
+train_loader = DataLoaderLite(B=4, T=32)
+
 # randomly initialise model
 model = GPT(GPTConfig())
 model.eval()
 
-# import dataset
-with open("tinyshakespeare.txt", "r") as file: # the with statement is a keyword which is used to call 
-    # __enter__ and __exit__  special methods in the class. These methods basically configure the environment of the class
-    # the special environment is only available within the with block, exiting the with block the __exit__ method is called
-    # and the environment is set back to default.
-    data = file.read()[:1000]
-enc = tiktoken.get_encoding('gpt2')
-b, t = 4, 32  # batch and tokens
-tokens = enc.encode(data)
-tokens = tokens[:b*t+1]
-x = torch.tensor(tokens[:-1]).view(b,t) # test data
-y = torch.tensor(tokens[1:]).view(b,t)  # label data
 
 
-logits, loss = model(x,y) # Strange that I'm directly calling class object of GPT with no method (e.g. model.method(x,y)
+
+#logits, loss = model(x,y) # Strange that I'm directly calling class object of GPT with no method (e.g. model.method(x,y)
 # This is because the superclass of model contains a special method __call__ which is called whenever you
 #directly call a class object (its like init but for already existing class objects). 
 # the __call__ method for nn.Module does a number of things, and one of them is to call the child classes
@@ -154,7 +189,21 @@ logits, loss = model(x,y) # Strange that I'm directly calling class object of GP
 # if you call this in the no_grad with block it won't use gradient descent to develop the score.
 # which basically removes some of the smartness of the LLM (doesn't use context)
 
-print(loss) # should be around 1/50257 if the model was initialised properly
+#print(loss) # should be around 1/50257 if the model was initialised properly
+
+#optimizer
+optimizer = torch.optim.AdamW(model.parameters(), lr = 3e-4)
+for i in range(50):
+    x,y = train_loader.next_batch()
+    x,y = x.to(device), y.to(device)
+    optimizer.zero_grad()
+    logits, loss = model(x,y)
+    loss.backward()
+    optimizer.step()
+    print(f"step {i}, loss: {loss.item()}")
+
+
+
 # # take the logits at the last position
 # logits = logits[:, -1, :] # (B, vocab_size)
 # # get the probabilities
