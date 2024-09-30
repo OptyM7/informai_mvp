@@ -1,0 +1,85 @@
+What is the patient's Medicare Card Number
+What is the patient's Last Name
+What are the patient's Given Name/s
+What is the patient's Sex
+What is the patient's Date of Birth
+What is the Reference
+What is the patient's Address
+What is the patient's Tel(Home)
+What is the patient's Tel(Bus)
+What is the patient's Mobile
+What are the Tests Requested
+Radio(
+(
+Is the patient Fasting
+Is the patient Non fasting
+)
+Is the patient Pregnant
+Does the patient receive Hormone therapy
+Is the patient LNMP
+Is the patient EDC
+)
+if Cervical cytology site(
+Checkbox(
+Is the cytology site Cervix 
+Is the cytology site Vaginal vault 
+Is the cytology site Endometrium 
+Is the cytology site Other)
+Is the patient Post natal 
+Is the patient Post menopausal 
+Has the patient received Radiotherapy 
+Does the patient have an IUCD 
+Does the patient have Abnormal bleeding
+Is the appearance of the cervix Benign 
+Is the appearance of the cervix Suspicious 
+Provide a summary of the Clinical Notes about the patient
+if CERVICAL SCREENING TEST(
+ Are the bloodwork results to be collected by the Practitioner
+ Are the bloodwork results to be collected by the patient
+)
+if (Pension Card No.){
+    What is the patient's PENSION CARD NO.
+}
+What is the patient's HEALTHCARE CARD NO.
+What is the patient's REPAT. GOLD CARD NO.
+Are the Clinical notes self determined
+Checkbox(
+ Is the bloodwork request URGENT  
+Should the bloodwork be PHONE FAX once complete?)
+if (PHONE FAX){
+BY what TIME should the bloodwork be phone faxed
+What is the PHONE/FAX number}
+#Checkbox(
+# #PRIVATE  
+#CONCESSION  
+#BULK BILL 
+#VET AFFAIRS  )
+IF (transfusion){
+What is the Date the transfusion is required
+What is the Time the transfusion is required
+What is the Reason for transfusion/operation
+Radio(
+In the past three months has the patient been Pregant?
+In the past three months has the patient been Transfused?
+)
+}
+Who should also receive a copy of the report results
+What is the doctor number of the requesting doctor
+What is the surname of the Requesting doctor 
+What are the initials of the Requesting doctor 
+What is the address of the Requesting doctor
+Which Hospital/ward is the patient located
+Does patient require copy of this request form?
+Radio(
+ Is the Private patient in a private 
+hospital or approved day 
+hospital facility) 
+#Radio(
+#   is the Private patient in a recognised hospital ) 
+#Radio(
+ #is the Public patient in a recognised hospital ) 
+#Radio(
+#  is the Outpatient of a recognised hospital) 
+
+}
+ACC
