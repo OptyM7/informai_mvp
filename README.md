@@ -1,7 +1,7 @@
-# informai_mvp
-Informai MVP
+# informai_investigation_project
+Informai Investigation Project
 
-The Informai MVP Project simply investigates the use of small LLM model (around 125M – 250M parameters) finetuned to fulfill specific form filling scenarios. The appeal of a narrow AI approach to specific form filling scenarios, is that hardware, training and inference costs associated of the LLM, are greatly reduced. 
+The Informai Investigation Project simply investigates the use of small LLM model (around 125M – 250M parameters) finetuned to fulfill specific form filling scenarios. The appeal of a narrow AI approach to specific form filling scenarios, is that hardware, training and inference costs associated of the LLM, are greatly reduced. 
 
 The scope of this project only covers an attempt in finetuning the GPT-Neo 125M model for the scenario of filling blood test request forms. 
 
